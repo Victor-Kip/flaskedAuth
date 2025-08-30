@@ -4,7 +4,7 @@
 <div class="container">
 
 <h2>Log in with Flask</h2>
-<form action="">
+<form id = "auth_form"action="{{url_for('login')}}" method="post">
     <input 
     type="text"
     name = 'username' 
@@ -20,14 +20,31 @@
     <input 
     type="submit"
     value="Login"
-    class="btn btn-login">
+    class="btn btn-login"
+    onclick="setActionForm('login')">
     
 
     <input 
     type="button" 
     value="Register"
-    class = "btn btn-register">
+    class = "btn btn-register"
+    onclick="setActionForm('register')">
 
 </form>
 </div>
+<script>
+    function setActionForm(action){
+        let form = document.getElementById("auth_form")
+        if (action === "login"){
+            form.action = "{{url_for('login')}}"
+            form.method = "post"
+            form.submit()
+        } 
+        else if(action === "register"){
+            form.action = "{{url_for('register')}}"
+            form.method = "post"
+            form.submit()
+        }
+    }
+</script>
 {% endblock %}
