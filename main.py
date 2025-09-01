@@ -31,8 +31,8 @@ def home():
 #login
 @app.route("/login",methods = ["POST"])
 def login():
-    username = request.form("username")
-    password = request.form("password")
+    username = request.form["username"]
+    password = request.form["password"]
     user = User.query.filter_by(username = username).first()
     if user and user.check_password(password):
         session["username"] = username
@@ -43,8 +43,8 @@ def login():
 #register
 @app.route("/register",methods = ["POST"])
 def register():
-    username = request.form("username")
-    password = request.form("password")
+    username = request.form["username"]
+    password = request.form["password"]
     user = User.query.filter_by(username = username).first()
     if user:
         return render_template("index.html",error = "User already exists")
@@ -52,9 +52,21 @@ def register():
         new_user = User(username = username)
         new_user.set_password(password)
         db.session.add(new_user)
-        db.commit()
+        db.session.commit()
+
         session["username"] = username
         return redirect(url_for("dashboard"))
+#dashboard
+@app.route("/dashboard")
+def dashboard():
+    if "username" in session:
+        return render_template("dashboard.html",username = session["username"])
+    return redirect (url_for("home"))
+#log out
+@app.route("/logout")
+def logout():
+    session.pop("username")
+    return redirect(url_for("home"))
 if __name__ in "__main__":
     with app.app_context():
         db.create_all()
