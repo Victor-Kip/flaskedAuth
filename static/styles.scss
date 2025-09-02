@@ -2,7 +2,7 @@ $primary-color:#007bff;
 $primary-hover-color:#0056b3;
 $secondary-color:#28a745;
 $secondary-hover-color:#218838;
-$background-color:wheat;
+$background-color:rgb(212, 239, 244);
 $container-bg-color:#ffffff;
 $text-color:#333;
 $subtext-color:#666;
@@ -26,7 +26,7 @@ header{
     padding: 20px 0;
     h1{
         margin:0;
-        font-size: 2.5rem;
+        font-size: 2rem;
         color:$text-color
     }
 }
@@ -77,7 +77,7 @@ main{
     cursor: pointer;
 }
 
-.btn-login {
+.btn-login,.btn-logout{
     background-color: $primary-color;
     color: #fff;
     &:hover {
@@ -91,4 +91,7 @@ main{
     &:hover {
         background-color: $secondary-hover-color;
     }
+}
+a{
+    text-decoration: none;
 }
