@@ -29,8 +29,14 @@
     value="Register"
     class = "btn btn-register"
     onclick="setActionForm('register')">
+    </form>
+    <a href="{{ url_for('googlelogin') }}">
+  <button>Login with Google</button>
+</a>
 
-</form>
+
+
+
 </div>
 <script>
     function setActionForm(action){
