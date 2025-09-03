@@ -18,15 +18,19 @@ google = oauth.register(
     name="google",
     client_id = CLIENT_ID,
     client_secret = CLIENT_SECRET,
-    server_metadata = "https://accounts.google.com/.well-known/open-id-configuration",
-    kwargs={"scope":"openid profile email"}
+    access_token_url="https://oauth2.googleapis.com/token",
+    authorize_url="https://accounts.google.com/o/oauth2/auth",
+    api_base_url="https://www.googleapis.com/oauth2/v1/",
+    userinfo_endpoint="https://openidconnect.googleapis.com/v1/userinfo",
+    jwks_uri="https://www.googleapis.com/oauth2/v3/certs",
+    client_kwargs={"scope": "openid profile email"}
 )
 
 #database model (a single row in database)
 class User(db.Model):
     id = db.Column(db.Integer,primary_key = True)
     username = db.Column(db.String(25),unique = True,nullable = False)
-    password_hash = db.Column(db.String(150),nullable =  False)
+    password_hash = db.Column(db.String(150),nullable =  True)
 
     def set_password(self,password):
         self.password_hash = generate_password_hash(password)
@@ -86,7 +90,7 @@ def logout():
 @app.route("/login/google")
 def googlelogin():
     try:
-        redirect_uri = url_for('authorize',_external = True)
+        redirect_uri = url_for('authorize_google',_external = True)
         return google.authorize_redirect(redirect_uri)
     except Exception as e:
         app.logger.error(f"An error during login:{str(e)}" )
@@ -106,8 +110,10 @@ def authorize_google():
         user = User(username = username)
         db.session.add(user)
         db.session.commit()
-
-if __name__ in "__main__":
+    session["username"] = username
+    session["oauth_token"] = token
+    return redirect(url_for("dashboard"))
+if __name__ == "__main__":
     with app.app_context():
         db.create_all()
     app.run(debug=True)
