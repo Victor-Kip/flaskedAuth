@@ -2,6 +2,7 @@ from flask import Flask, render_template,request,redirect,session,url_for
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_sqlalchemy import SQLAlchemy
 from authlib.integrations.flask_client import OAuth
+from api_key import *
 
 app = Flask(__name__)
 app.secret_key = 'mon_secret_key'
@@ -13,7 +14,13 @@ db = SQLAlchemy(app)
 
 #configure oauth
 oauth = OAuth(app)
-google = oauth.register()
+google = oauth.register(
+    name="google",
+    client_id = CLIENT_ID,
+    client_secret = CLIENT_SECRET,
+    server_metadata = "https://accounts.google.com/.well-known/open-id-configuration",
+    kwargs={"scope":"openid profile email"}
+)
 
 #database model (a single row in database)
 class User(db.Model):
@@ -68,11 +75,38 @@ def dashboard():
     if "username" in session:
         return render_template("dashboard.html",username = session["username"])
     return redirect (url_for("home"))
+
 #log out
 @app.route("/logout")
 def logout():
     session.pop("username")
     return redirect(url_for("home"))
+
+#login with google
+@app.route("/login/google")
+def googlelogin():
+    try:
+        redirect_uri = url_for('authorize',_external = True)
+        return google.authorize_redirect(redirect_uri)
+    except Exception as e:
+        app.logger.error(f"An error during login:{str(e)}" )
+        return "Error during login",500
+
+#google authorization
+@app.route('/authorize/google')
+def authorize_google():
+    token = google.authorize_access_token()
+    userinfo_endpoint = google.server_metadata["userinfo_endpoint"]
+    resp = google.get(userinfo_endpoint)
+    user_info = resp.json()
+    username = user_info["email"]
+
+    user = User.query.filter_by(username = username).first()
+    if not user:
+        user = User(username = username)
+        db.session.add(user)
+        db.session.commit()
+
 if __name__ in "__main__":
     with app.app_context():
         db.create_all()
