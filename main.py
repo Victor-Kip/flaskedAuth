@@ -2,6 +2,8 @@ from flask import Flask, render_template,request,redirect,session,url_for
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_sqlalchemy import SQLAlchemy
 from authlib.integrations.flask_client import OAuth
+from itsdangerous import URLSafeSerializer
+from flask_mail import Mail,Message
 from api_key import *
 
 app = Flask(__name__)
@@ -37,8 +39,26 @@ class User(db.Model):
     def check_password(self,password):
         return check_password_hash(self.password_hash,password)
 
+#configure mail_trap
+app.config['MAIL_SERVER']='live.smtp.mailtrap.io'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USERNAME'] = 'api'
+app.config['MAIL_PASSWORD'] = MAIL_API_KEY
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USE_SSL'] = False
 
- #routes
+#setup mail
+mail = Mail(app)
+serializer = URLSafeSerializer(app.secret_key)
+def generate_confirmation_token(email):
+    return serializer.dumps(email,salt = "email-confirm")
+def confirm_token(token,salt):
+    try:
+        email = serializer.loads(token,salt = salt,max_age = 3600)
+        return email
+    except:
+        return False
+#routes
 @app.route("/")
 def home():
     if "username" in session:
@@ -70,9 +90,22 @@ def register():
         new_user.set_password(password)
         db.session.add(new_user)
         db.session.commit()
-
-        session["username"] = username
-        return redirect(url_for("dashboard"))
+        token = generate_confirmation_token(username)
+        confirm_url = url_for("confirm_email",token = token, _external = True)
+        msg = Message("Confirm Your Email",recipients = [username])
+        msg.html = f"""Click <a href="{confirm_url}">here</a> to confirm your email"""
+        mail.send(msg)
+        return render_template("index.html",message = "Please check your email for confirmation")
+#confirm email
+@app.route("/confirm_email/<token>")
+def confirm_email(token):
+    email = confirm_token(token,salt = "email-confirm")
+    if email:
+        user = User.query.filter_by(username = email).first()
+        if user:
+            session["username"] = email
+            return redirect(url_for("dashboard"))
+    return render_template("index.html",error = "Invalid or expired token")
 #dashboard
 @app.route("/dashboard")
 def dashboard():
