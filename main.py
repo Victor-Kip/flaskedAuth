@@ -2,12 +2,50 @@ from flask import Flask, render_template,request,redirect,session,url_for
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_sqlalchemy import SQLAlchemy
 from authlib.integrations.flask_client import OAuth
+from api_key import *
 from itsdangerous import URLSafeSerializer
 from flask_mail import Mail,Message
-from api_key import *
 
 app = Flask(__name__)
 app.secret_key = 'mon_secret_key'
+
+#configure gmail_smtp
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = SENDER_EMAIL
+app.config['MAIL_PASSWORD'] = MAIL_PASSWORD
+app.config['MAIL_DEFAULT_SENDER'] = SENDER_EMAIL
+
+# initialize mail
+mail = Mail(app)
+
+#define serializer
+serializer = URLSafeSerializer(app.secret_key)
+
+def generate_verification_token(email):
+    return serializer.dumps(email, salt='email-confirm')
+
+def confirm_token(token, expiration=3600):
+    return serializer.loads(token, salt='email-confirm', max_age=expiration)
+
+def send_verification_email(user_email):
+    token = generate_verification_token(user_email)
+    link = url_for('verify_email', token=token, _external=True)
+    msg = Message("Verify Your Email", recipients=[user_email])
+    msg.body = f"Click to verify your account: {link}"
+    mail.send(msg)
+@app.route('/verify/<token>')
+def verify_email(token):
+    try:
+        email = confirm_token(token)
+    except Exception:
+        return "Invalid or expired token"
+    user = User.query.filter_by(username = email).first()
+    if user:
+        session["username"] = email
+        return redirect(url_for("dashboard"))
+    return "Invalid or expired token"
 
 #configure SQLAlchemy
 app.config["SQLALCHEMY_DATABASE_URI"] ="sqlite:///users.db"
@@ -39,25 +77,6 @@ class User(db.Model):
     def check_password(self,password):
         return check_password_hash(self.password_hash,password)
 
-#configure mail_trap
-app.config['MAIL_SERVER']='live.smtp.mailtrap.io'
-app.config['MAIL_PORT'] = 587
-app.config['MAIL_USERNAME'] = 'api'
-app.config['MAIL_PASSWORD'] = MAIL_API_KEY
-app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USE_SSL'] = False
-
-#setup mail
-mail = Mail(app)
-serializer = URLSafeSerializer(app.secret_key)
-def generate_confirmation_token(email):
-    return serializer.dumps(email,salt = "email-confirm")
-def confirm_token(token,salt):
-    try:
-        email = serializer.loads(token,salt = salt,max_age = 3600)
-        return email
-    except:
-        return False
 #routes
 @app.route("/")
 def home():
@@ -76,7 +95,7 @@ def login():
         return redirect(url_for("dashboard"))
 
     else:
-        return render_template("index.html")
+        return render_template("index.html", error="Invalid username or password")
 #register
 @app.route("/register",methods = ["POST"])
 def register():
@@ -90,28 +109,14 @@ def register():
         new_user.set_password(password)
         db.session.add(new_user)
         db.session.commit()
-        token = generate_confirmation_token(username)
-        confirm_url = url_for("confirm_email",token = token, _external = True)
-        msg = Message("Confirm Your Email",recipients = [username])
-        msg.html = f"""Click <a href="{confirm_url}">here</a> to confirm your email"""
-        mail.send(msg)
-        return render_template("index.html",message = "Please check your email for confirmation")
-#confirm email
-@app.route("/confirm_email/<token>")
-def confirm_email(token):
-    email = confirm_token(token,salt = "email-confirm")
-    if email:
-        user = User.query.filter_by(username = email).first()
-        if user:
-            session["username"] = email
-            return redirect(url_for("dashboard"))
-    return render_template("index.html",error = "Invalid or expired token")
+        send_verification_email(username)
+        return render_template("index.html", message="Please check your email to verify your account")
 #dashboard
 @app.route("/dashboard")
 def dashboard():
     if "username" in session:
         return render_template("dashboard.html",username = session["username"])
-    return redirect (url_for("home"))
+    return redirect(url_for("home"))
 
 #log out
 @app.route("/logout")
